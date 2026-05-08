@@ -39,6 +39,7 @@ const withdrawalSourceEl = document.querySelector("#withdrawalSource");
 const withdrawalDestinationEl = document.querySelector("#withdrawalDestination");
 const withdrawalAssetEl = document.querySelector("#withdrawalAsset");
 const withdrawalNetworkEl = document.querySelector("#withdrawalNetwork");
+const withdrawalManualNetworkEl = document.querySelector("#withdrawalManualNetwork");
 const withdrawalAmountEl = document.querySelector("#withdrawalAmount");
 const withdrawalConfirmAssetEl = document.querySelector("#withdrawalConfirmAsset");
 const withdrawalJsonImportEl = document.querySelector("#withdrawalJsonImport");
@@ -75,6 +76,7 @@ liveDisarmBtn.addEventListener("click", async () => {
   withdrawalDestinationEl,
   withdrawalAssetEl,
   withdrawalNetworkEl,
+  withdrawalManualNetworkEl,
   withdrawalAmountEl
 ].forEach((el) => el.addEventListener("change", () => {
   if (el !== withdrawalNetworkEl) syncWithdrawalNetworks();
@@ -164,6 +166,7 @@ function withdrawalPayload() {
     destinationExchange: withdrawalDestinationEl.value,
     asset: withdrawalAssetEl.value,
     network: withdrawalNetworkEl.value,
+    manualNetwork: withdrawalManualNetworkEl.value,
     amount: Number(withdrawalAmountEl.value || 0),
     confirmAsset: withdrawalConfirmAssetEl.value,
     manualApproval: withdrawalManualApprovalEl.checked
@@ -209,6 +212,8 @@ function applyWithdrawalConfig(config) {
   setSelectValue(withdrawalAssetEl, String(pick("asset", "currency", "WITHDRAWAL_ASSET", "ASSET") || "").toUpperCase());
   syncWithdrawalNetworks();
   setSelectValue(withdrawalNetworkEl, String(pick("network", "net_type", "WITHDRAWAL_NETWORK", "NETWORK") || "").toUpperCase());
+  const manualNetwork = pick("manualNetwork", "manual_network", "MANUAL_NETWORK", "TRANSFER_MANUAL_NETWORK");
+  if (manualNetwork != null) withdrawalManualNetworkEl.value = String(manualNetwork).toUpperCase();
   const amount = pick("amount", "requested_total_amount", "WITHDRAWAL_AMOUNT", "AMOUNT");
   if (amount != null && amount !== "") withdrawalAmountEl.value = amount;
   const confirmAsset = pick("confirmAsset", "confirm_asset", "CONFIRM_ASSET");
@@ -294,6 +299,7 @@ function renderWithdrawalPanel() {
     ${summaryLine("API 입력 수량", `${formatNumber(quote.withdrawAmount, 6)} ${withdrawalAssetEl.value}`)}
     ${summaryLine("입금 상태", quote.option?.depositEnabled ? "가능" : "차단")}
     ${summaryLine("출금 상태", quote.option?.withdrawEnabled ? "가능" : "차단")}
+    ${summaryLine("네트워크 방식", quote.option?.manualOverride ? "수동 입력" : "자동 교집합/최저 수수료")}
     ${summaryLine("주소 출처", quote.address?.source || "-")}
     ${summaryLine("출금 어댑터", quote.adapterAvailable ? "연결됨" : "미구현")}
     ${summaryLine("실행 모드", quote.executionMode || "DEMO_ONLY")}
@@ -442,7 +448,7 @@ function render(data) {
         <td class="premium ${row.netPremiumPercent >= 0 ? "positive-text" : "negative-text"}">${row.netPremiumPercent == null ? "-" : row.netPremiumPercent.toFixed(3) + "%"}</td>
         <td>${formatNumber(row.slippagePercent, 3)}%<br /><span class="summary-meta">마지막 ${formatNumber(row.domesticFill?.lastPrice, 4)} / 허용 ${formatNumber(row.domesticFill?.worstAllowedPrice, 4)}</span></td>
         <td>${formatNumber(row.availableDepthUsdt, 2)}</td>
-        <td><div class="risk-reason">${row.risk?.approved ? "APPROVED" : (row.risk?.reasons ?? []).join(", ")}${row.transferStatus ? `<br /><span class="summary-meta">출금 ${row.transferStatus.withdrawEnabled ? "OK" : "BLOCK"} · 입금 ${row.transferStatus.depositEnabled ? "OK" : "BLOCK"} · ${escapeHtml(row.transferStatus.source)}</span>` : ""}${row.transferStatus?.routeEconomics ? `<br /><span class="summary-meta">네트워크 ${escapeHtml(row.transferStatus.routeEconomics.bestNetwork || row.transferStatus.network || "-")} · 수수료 ${formatNumber(row.transferStatus.routeEconomics.withdrawFee, 6)} ${row.asset} · 차익 ${formatNumber(row.transferStatus.routeEconomics.estimatedNetEdgeAfterTransferFeeKrw, 0)} KRW</span>` : ""}${row.hedgeStatus ? `<br /><span class="summary-meta">헷지 ${row.hedgeStatus.shortEnabled ? "OK" : "BLOCK"} · ${escapeHtml(row.hedgeStatus.exchange || "-")} · basis ${formatNumber(row.hedgeStatus.basisPercent, 3)}% · 깊이 ${formatNumber(row.hedgeStatus.depthUsdt, 0)}</span>` : ""}${row.domesticDivergencePercent != null ? `<br /><span class="summary-meta">국내괴리 ${formatNumber(row.domesticDivergencePercent, 2)}%</span>` : ""}</div></td>
+        <td><div class="risk-reason">${row.risk?.approved ? "APPROVED" : (row.risk?.reasons ?? []).join(", ")}${row.transferStatus ? `<br /><span class="summary-meta">출금 ${row.transferStatus.withdrawEnabled ? "OK" : "BLOCK"} · 입금 ${row.transferStatus.depositEnabled ? "OK" : "BLOCK"} · ${escapeHtml(row.transferStatus.source)}</span>` : ""}${row.transferStatus?.routeEconomics ? `<br /><span class="summary-meta">네트워크 ${escapeHtml(row.transferStatus.routeEconomics.bestNetwork || row.transferStatus.network || "-")} · 수수료 ${formatNumber(row.transferStatus.routeEconomics.withdrawFee, 6)} ${row.asset} · 차익 ${formatNumber(row.transferStatus.routeEconomics.estimatedNetEdgeAfterTransferFeeKrw, 0)} KRW</span>` : ""}${row.entryPlan ? `<br /><span class="summary-meta">이번 진입 가능 ${formatNumber(row.entryPlan.executableUsdt, 2)} USDT · 현물 ${formatNumber(row.entryPlan.spotBuyCapacityUsdt, 2)} / 숏 ${formatNumber(row.entryPlan.shortEntryCapacityUsdt, 2)}</span>` : ""}${row.hedgeStatus ? `<br /><span class="summary-meta">헷지 ${row.hedgeStatus.shortEnabled ? "OK" : "BLOCK"} · ${escapeHtml(row.hedgeStatus.exchange || "-")} · basis ${formatNumber(row.hedgeStatus.basisPercent, 3)}% · 깊이 ${formatNumber(row.hedgeStatus.depthUsdt, 0)}${row.hedgeStatus.reasons?.length ? ` · 사유 ${escapeHtml(row.hedgeStatus.reasons.join("/"))}` : ""}</span>` : ""}${row.domesticDivergencePercent != null ? `<br /><span class="summary-meta">국내괴리 ${formatNumber(row.domesticDivergencePercent, 2)}%</span>` : ""}</div></td>
         <td>${stale ? `<span class="stale-text">stale · ${ageText(row.updatedAgoMs)}</span>` : `<span class="ok-text">live</span>`}</td>
       </tr>
     `;
@@ -662,6 +668,7 @@ function renderEligible(rows) {
       <strong>${row.asset} · ${row.domesticExchange} / ${row.foreignExchange}</strong>
       <div>김프 ${row.premiumPercent.toFixed(3)}% · 비용 반영 ${row.netPremiumPercent.toFixed(3)}%</div>
       <div>국내 bid ${formatNumber(row.domesticBid, 0)} KRW · 해외 ask ${formatNumber(row.foreignAsk, row.foreignAsk > 10 ? 2 : 5)} USDT</div>
+      <div class="summary-meta">이번 회차 ${formatNumber(row.entryPlan?.executableUsdt, 2)} USDT 진입 가능 · 15초마다 남은 목표 재확인</div>
       <div class="summary-meta">헷지 ${escapeHtml(row.hedgeStatus?.exchange || "-")} · 선물 bid ${formatNumber(row.hedgeStatus?.futuresBid, row.hedgeStatus?.futuresBid > 10 ? 2 : 5)} · basis ${formatNumber(row.hedgeStatus?.basisPercent, 3)}%</div>
     </div>
   `).join("");
